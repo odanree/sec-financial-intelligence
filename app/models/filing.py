@@ -1,10 +1,17 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, JSON, String, Text, Uuid
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # BigInteger renders as INTEGER in SQLite (supports autoincrement) but BIGINT in PostgreSQL
 _BigIntPK = BigInteger().with_variant(Integer, "sqlite")
+
+# Embedding stored as a native float array on Postgres (matches the migration:
+# postgresql.ARRAY(Float)) and as JSON on SQLite/other dialects (tests). The
+# column was previously hardcoded to JSON, which mismatched the Postgres
+# double precision[] column and raised DatatypeMismatchError on insert.
+_EmbeddingType = JSON().with_variant(PG_ARRAY(Float), "postgresql")
 
 
 class Base(DeclarativeBase):
@@ -119,6 +126,6 @@ class DocChunk(Base):
     section: Mapped[str | None] = mapped_column(String(100))   # risk_factors|mda|business|financials
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[list[float] | None] = mapped_column(JSON)      # ARRAY(Float) on Postgres, JSON elsewhere
+    embedding: Mapped[list[float] | None] = mapped_column(_EmbeddingType)
 
     filing: Mapped["Filing"] = relationship(back_populates="chunks")
